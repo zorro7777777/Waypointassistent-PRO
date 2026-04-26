@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WAYPOINTASSISTENT PRO — V4.8</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+
+  <style>
+    /* ── Design tokens ─────────────────────────────────────────────────── */
+    :root {
+      --bg-dark:   #1a1a1a;
+      --accent:    #00bfff;
+      --success:   #27ae60;
+      --warning:   #f39c12;
+      --danger:    #e74c3c;
+      --text-main: #2c3e50;
+      --tab-h:     58px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, system-ui, sans-serif;
+      background: #f0f3f5;
+      color: var(--text-main);
+      font-size: 13px;
+      margin: 0;
+      padding-bottom: calc(var(--tab-h) + 8px);
+    }
+
+    /* ── Card ──────────────────────────────────────────────────────────── */
+    .card {
+      max-width: 500px;
+      margin: 8px auto 0;
+      background: white;
+      padding: 12px;
+      border-radius: 15px;
+      box-shadow: 0 8px 20px rgba(0,0,0,.15);
+    }
+
+    /* ── Console ────────────────────────────────────────────────────────── */
+    #console {
+      background: var(--bg-dark);
+      color: #00ff00;
+      padding: 12px;
+      border-radius: 10px;
+      font-family: 'Courier New', monospace;
+      margin: 10px 0;
+      border-left: 5px solid var(--success);
+      min-height: 100px;
+    }
+
+    /* ── Stat grid ──────────────────────────────────────────────────────── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      text-align: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .stat-value { color: var(--accent); font-weight: 900; font-size: 1.8rem; display: block; }
+    .stat-label { font-size: .7rem; color: #7f8c8d; text-transform: uppercase; }
+
+    /* ── Config panel ───────────────────────────────────────────────────── */
+    .config-section {
+      background: #ecf0f1;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      display: none;
+    }
+
+    /* ── Buttons ────────────────────────────────────────────────────────── */
+    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    button {
+      padding: 12px; border: none; border-radius: 8px;
+      font-weight: bold; color: white; cursor: pointer; flex: 1;
+    }
+    .btn-start { background: var(--success); flex: 2; }
+    .btn-blue  { background: var(--accent);  flex: 0.5; }
+    .btn-red   { background: var(--danger);  flex: 0.5; }
+
+    hr { border: 0; border-top: 1px solid #444; margin: 8px 0; }
+
+    /* ── Waypoint table ─────────────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    td    { padding: 10px 4px; border-bottom: 1px solid #eee; cursor: pointer; }
+    .strikethrough { text-decoration: line-through; opacity: .5; color: var(--danger); }
+
+    .info-badge {
+      background: var(--accent); color: white; font-size: .6rem;
+      min-width: 16px; height: 16px; padding: 0 4px; border-radius: 50px;
+      margin-left: 5px; font-weight: bold;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+
+    /* ── Tabs ───────────────────────────────────────────────────────────── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    #tab-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      height: var(--tab-h);
+      background: white; border-top: 1px solid #dde3e8;
+      display: flex; justify-content: space-around; align-items: stretch;
+      z-index: 1000;
+      box-shadow: 0 -4px 12px rgba(0,0,0,.08);
+      max-width: 500px; margin: 0 auto;
+    }
+    .tab-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 3px; background: none; border: none;
+      border-top: 3px solid transparent; color: #95a5a6;
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .04em; cursor: pointer; padding: 0;
+      transition: color .18s, border-color .18s;
+    }
+    .tab-btn .tab-icon { font-size: 1.3rem; line-height: 1; }
+    .tab-btn.active { color: var(--accent); border-top-color: var(--accent); }
+
+    /* ── Announcements ──────────────────────────────────────────────────── */
+    #announce-log { list-style: none; margin: 0; padding: 0; }
+    #announce-log li {
+      padding: 10px 8px; border-bottom: 1px solid #eee;
+      display: flex; gap: 10px; align-items: flex-start; font-size: .85rem;
+    }
+    #announce-log li .ann-time  { color: #95a5a6; font-size: .75rem; white-space: nowrap; padding-top: 2px; }
+    #announce-log li .ann-icon  { font-size: 1rem; }
+    #announce-log li .ann-text  { flex: 1; }
+    #announce-log .ann-empty    { text-align: center; color: #95a5a6; padding: 30px 0; font-size: .85rem; }
+
+    /* ── Map tab ────────────────────────────────────────────────────────── */
+    #tab-map { padding: 0; }
+    #tab-map .card { padding: 0; overflow: hidden; }
+
+    #map { width: 100%; height: 340px; background: #e8e8e8; position: relative; z-index: 1; }
+
+    #layer-switcher {
+      position: absolute; top: 8px; right: 8px; z-index: 500;
+      background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.2);
+      padding: 6px 8px; font-size: 11px; font-weight: 600; color: var(--text-main);
+    }
+    #layer-switcher label { display: flex; align-items: center; gap: 5px; cursor: pointer; padding: 2px 0; }
+
+    #compass {
+      position: absolute; bottom: 8px; right: 8px; z-index: 500;
+      width: 44px; height: 44px; background: white; border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0,0,0,.25);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; transition: transform .3s ease;
+      cursor: pointer; user-select: none;
+    }
+
+    #map-controls {
+      padding: 10px 12px; display: flex; gap: 8px; align-items: center;
+      border-bottom: 1px solid #eee;
+    }
+    #map-controls button { flex: none; padding: 7px 12px; font-size: 11px; background: var(--accent); }
+
+    .toggle-pill {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--text-main); font-weight: 600;
+    }
+    .toggle-pill input[type=checkbox] { width: 14px; height: 14px; cursor: pointer; }
+
+    /* ── Elevation ──────────────────────────────────────────────────────── */
+    #elevation-section { padding: 10px 12px 6px; }
+    #elevation-section h4 {
+      margin: 0 0 6px; font-size: .75rem; color: #7f8c8d;
+      text-transform: uppercase; letter-spacing: .04em;
+    }
+    #elevation-canvas {
+      width: 100%; height: 80px; border-radius: 6px;
+      display: block; background: #f8f9fa;
+    }
+    #elevation-stats {
+      display: flex; justify-content: space-around;
+      margin-top: 6px; font-size: .75rem; color: #7f8c8d;
+    }
+    #elevation-stats span strong { color: var(--text-main); }
+
+    /* ── Map legend ─────────────────────────────────────────────────────── */
+    #map-legend {
+      display: flex; gap: 12px; padding: 6px 12px 8px;
+      font-size: .72rem; color: #7f8c8d; align-items: center;
+    }
+    .legend-line {
+      width: 24px; height: 4px; border-radius: 2px;
+      display: inline-block; vertical-align: middle; margin-right: 4px;
+    }
+
+    #map-no-gpx {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; height: 200px; color: #95a5a6; font-size: .85rem; gap: 8px;
+    }
+    #map-no-gpx .big { font-size: 2.5rem; }
+  </style>
+</head>
+<body>
+
+<!-- ══ TAB 1 — HOME ══ -->
+<div id="tab-home" class="tab-panel active">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <h2 style="margin:0;font-size:1.1rem;">
+        WAYPOINTASSISTENT <span style="color:var(--accent)">PRO V4.8</span>
+      </h2>
+      <span id="configGear" style="cursor:pointer;font-size:1.2rem;" title="Instellingen">⚙️</span>
+    </div>
+
+    <div id="configArea" class="config-section">
+      <div class="row">
+        <select id="profile" style="padding:8px;flex:1;">
+          <option value="wandelen">🚶 Wandelen</option>
+          <option value="fietsen">🚲 Fietsen</option>
+        </select>
+        <input type="number" id="userWeight" style="width:50px;padding:5px;" value="92"> kg
+      </div>
+      <label><input type="checkbox" id="audioToggle" checked> Spraakassistent (NL)</label>
+      <hr>
+      <input type="file" id="gpxInput" accept=".gpx" style="width:100%;">
+    </div>
+
+    <div class="stat-grid">
+      <div><span class="stat-label">Off-Route</span><span id="ui-off-big" class="stat-value">0m</span></div>
+      <div><span class="stat-label">KM/U</span><span id="ui-speed-big" class="stat-value">0.0</span></div>
+      <div><span class="stat-label">GPS Acc</span><span id="ui-acc-big" class="stat-value">0m</span></div>
+    </div>
+
+    <div style="background:#e8f4fd;padding:10px;border-radius:8px;border-left:4px solid var(--accent);margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <span class="stat-label">Traject:</span>
+        <span id="ui-total-len" style="font-size:.75rem;font-weight:bold;color:var(--success);">Afstand: --</span>
+      </div>
+      <span id="ui-segment" style="font-weight:bold;font-size:.95rem;">Wacht op GPX...</span>
+    </div>
+
+    <div class="row">
+      <button id="startBtn"  class="btn-start">▶ START</button>
+      <button id="stopBtn"   class="btn-red"   style="background:#7f8c8d;display:none;">⏹</button>
+      <button id="resetBtn"  class="btn-red"   style="display:none;">🔄</button>
+    </div>
+
+    <div id="console">
+      <div id="standby-msg" style="text-align:center;padding:20px;">
+        Laad een GPX bestand om te beginnen.
+      </div>
+      <div id="live-ui" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span>WP: <span id="ui-next-wp" style="color:#fff;font-weight:bold;">---</span></span>
+          <span id="ui-dist" style="color:var(--accent);font-size:1.2rem;font-weight:bold;">0m</span>
+        </div>
+        <hr>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.8rem;">
+          <div>TRIP:     <span id="ui-trip"       style="color:#00ff00">0.000 km</span></div>
+          <div>ETA:      <span id="ui-eta"        style="color:#00ff00">--:--</span></div>
+          <div>MOVE:     <span id="ui-mov-time"   style="color:#00ff00">00:00:00</span></div>
+          <div>PAUZE:    <span id="ui-pau-time"   style="color:#00ff00">00:00:00</span></div>
+          <div>KCAL:     <span id="ui-kcal"       style="color:#00ff00">0</span></div>
+          <div>MET:      <span id="ui-met"        style="color:#00ff00">1.0</span></div>
+          <div>AVG KM/U: <span id="ui-avg-speed"  style="color:#00ff00">0.0</span></div>
+          <div><span id="ui-count-label">STAPPEN</span>: <span id="ui-steps" style="color:#00ff00">0</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB 2 — MELDINGEN ══ -->
+<div id="tab-announce" class="tab-panel">
+  <div class="card">
+    <h3 style="margin:0 0 12px;font-size:.95rem;">📢 Aankondigingen</h3>
+    <ul id="announce-log">
+      <li class="ann-empty">Nog geen aankondigingen.<br>Start de tracker om berichten te zien.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══ TAB 3 — WAYPOINTS ══ -->
+<div id="tab-waypoints" class="tab-panel">
+  <div class="card">
+    <h3 style="margin:0 0 12px;font-size:.95rem;">📍 Waypoints</h3>
+    <div id="wp-empty" style="text-align:center;color:#95a5a6;padding:30px 0;font-size:.85rem;">
+      Laad een GPX bestand om de waypoints te zien.
+    </div>
+    <table id="wpList"></table>
+  </div>
+</div>
+
+<!-- ══ TAB 4 — KAART ══ -->
+<div id="tab-map" class="tab-panel">
+  <div class="card">
+    <div id="map-controls">
+      <button id="btnCenterUser" style="background:var(--success);">📍 Centreer</button>
+      <button id="btnFitRoute"   style="background:var(--accent);">🗺️ Hele route</button>
+      <div class="toggle-pill">
+        <input type="checkbox" id="rotateToggle">
+        <label for="rotateToggle">Kaart meedraaien</label>
+      </div>
+    </div>
+
+    <div style="position:relative;">
+      <div id="map"></div>
+
+      <div id="layer-switcher">
+        <label><input type="radio" name="baselayer" value="osm" checked> OSM</label>
+        <label><input type="radio" name="baselayer" value="topo"> Topo</label>
+        <label style="margin-top:4px;border-top:1px solid #eee;padding-top:4px;">
+          <input type="checkbox" id="trailsOverlay"> Wandelpaden
+        </label>
+      </div>
+
+      <div id="compass" title="Kompas — klik om naar noorden te richten">🧭</div>
+    </div>
+
+    <div id="map-legend">
+      <span><span class="legend-line" style="background:#7f8c8d;"></span>Gelopen</span>
+      <span><span class="legend-line" style="background:var(--accent);"></span>Te lopen</span>
+      <span><span class="legend-line" style="background:var(--danger);"></span>Off-route</span>
+    </div>
+
+    <div id="map-no-gpx">
+      <span class="big">🗺️</span>
+      <span>Laad een GPX bestand om de kaart te activeren.</span>
+    </div>
+
+    <div id="elevation-section" style="display:none;">
+      <h4>📈 Hoogteprofiel</h4>
+      <canvas id="elevation-canvas"></canvas>
+      <div id="elevation-stats">
+        <span>↑ Stijging: <strong id="elev-up">--</strong>m</span>
+        <span>↓ Daling: <strong id="elev-down">--</strong>m</span>
+        <span>⛰ Max: <strong id="elev-max">--</strong>m</span>
+        <span>🏖 Min: <strong id="elev-min">--</strong>m</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TABBALK ══ -->
+<nav id="tab-bar">
+  <button class="tab-btn active" data-tab="home"      id="tbtn-home">
+    <span class="tab-icon">🏠</span>Home
+  </button>
+  <button class="tab-btn"        data-tab="announce"  id="tbtn-announce">
+    <span class="tab-icon">📢</span>Meldingen
+  </button>
+  <button class="tab-btn"        data-tab="waypoints" id="tbtn-waypoints">
+    <span class="tab-icon">📍</span>Waypoints
+  </button>
+  <button class="tab-btn"        data-tab="map"       id="tbtn-map">
+    <span class="tab-icon">🗺️</span>Kaart
+  </button>
+</nav>
+
+<script type="module">
+  /**
+   * Entry point — waits for Leaflet to load before bootstrapping the app.
+   * In a Vite build this import order is handled by the bundler.
+   */
+  import { init, handleStartPause, handleStop, readWaypoint } from './app/appController.js';
+  import { switchTab, toggleConfig } from './ui/uiController.js';
+
+  // Expose minimal API for inline HTML onclick attributes (legacy compat)
+  // In a full build these would be removed; components use event listeners.
+  window._app = { handleStartPause, handleStop };
+
+  // Wire remaining button events
+  document.getElementById('startBtn')?.addEventListener('click', handleStartPause);
+  document.getElementById('stopBtn')?.addEventListener('click', handleStop);
+  document.getElementById('resetBtn')?.addEventListener('click', () => location.reload());
+
+  // Bootstrap
+  window.addEventListener('load', () => {
+    // Leaflet is loaded via <script defer> — wait one tick
+    requestAnimationFrame(init);
+  });
+</script>
+</body>
+</html>
