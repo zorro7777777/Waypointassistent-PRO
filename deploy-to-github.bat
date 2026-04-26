@@ -1,17 +1,17 @@
 @echo off
-title WAYPOINTASSISTENT PRO — GITHUB DEPLOY (FIXED)
+title WAYPOINTASSISTENT PRO — AUTO GITHUB DEPLOY
 color 0A
 cls
 
 echo ============================================
-echo   WAYPOINTASSISTENT PRO — GITHUB DEPLOY
+echo   WAYPOINTASSISTENT PRO — AUTO DEPLOY
 echo ============================================
 echo.
 
 :: Check Git
 git --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [FOUT] Git is niet geinstalleerd!
+    echo [FOUT] Git niet gevonden
     pause
     exit /b
 )
@@ -19,63 +19,52 @@ if %errorlevel% neq 0 (
 echo [OK] Git gevonden
 echo.
 
-:: User identity check
-git config user.name >nul 2>&1
+:: Auto user setup
+git config --global user.name >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [SETUP] Git user niet gevonden - instellen...
+    echo [SETUP] Git user instellen...
     git config --global user.name "WaypointUser"
-    git config --global user.email "user@waypoint.local"
+    git config --global user.email "waypoint@local.dev"
 )
 
-:: Commit message
-set /p msg=Commit message (Enter = auto): 
-if "%msg%"=="" set msg=update waypointassistent
+:: Default commit message
+set msg=auto update waypointassistent
 
-echo.
-echo [1/6] Repository initialiseren...
-git init
+echo [1/5] Repository check...
+git init >nul 2>&1
 
-echo.
-echo [2/6] Branch instellen...
-git branch -M main
+echo [2/5] Branch main...
+git branch -M main >nul 2>&1
 
-echo.
-echo [3/6] Remote controleren...
+echo [3/5] Remote fix...
 
 git remote get-url origin >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Geen remote gevonden.
-    set /p repo=Plak GitHub repo URL: 
-    git remote add origin %repo%
+    echo Geen remote → toevoegen...
+    git remote add origin https://github.com/zorro7777777/Waypointassistent-PRO.git
 ) else (
-    echo Remote bestaat al - overslaan
+    echo Remote bestaat → resetten...
+    git remote set-url origin https://github.com/zorro7777777/Waypointassistent-PRO.git
 )
 
-echo.
-echo [4/6] Bestanden toevoegen...
+echo [4/5] Add files...
 git add .
 
-echo.
-echo [5/6] Commit maken...
-git commit -m "%msg%"
-
-echo.
-echo [6/6] Push naar GitHub...
+echo [5/5] Commit + push...
+git commit -m "%msg%" >nul 2>&1
 git push -u origin main
 
 if %errorlevel% neq 0 (
     echo.
-    echo [FOUT] Push mislukt!
-    echo Controleer:
-    echo - GitHub repo bestaat
-    echo - Internet verbinding
-    echo - juiste URL
+    echo [FOUT] Push mislukt
+    echo Controleer internet / GitHub access
     pause
     exit /b
 )
 
 echo.
 echo ============================================
-echo  DEPLOY SUCCESVOL!
+echo   DEPLOY SUCCESVOL
 echo ============================================
+echo.
 pause
